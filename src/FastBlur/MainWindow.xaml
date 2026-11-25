@@ -1,0 +1,226 @@
+<Window x:Class="FastBlur.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FastBlur 0.1.0 — auto-blur sensitive info in videos"
+        Width="1280" Height="800" MinWidth="900" MinHeight="600"
+        AllowDrop="True" Drop="Window_Drop" DragOver="Window_DragOver"
+        KeyDown="Window_KeyDown">
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Header -->
+    <DockPanel Grid.Row="0" Background="#FF202020" LastChildFill="False">
+      <TextBlock Text="FastBlur" Foreground="White" FontSize="20" FontWeight="Bold"
+                 VerticalAlignment="Center" Margin="12,6,4,6"/>
+      <TextBlock Text="0.1.0" Foreground="#FFAAAAAA" FontSize="12"
+                 VerticalAlignment="Center" Margin="0,6,16,6"/>
+      <Button Content="Open video…" Click="OpenVideo_Click" Margin="6"/>
+      <Button Content="Draw a box" x:Name="DrawToggleBtn" Command="{Binding ToggleDrawModeCommand}" Margin="6"/>
+      <Button Content="Fullscreen" Click="Fullscreen_Click" Margin="6"/>
+      <Button Content="Export blurred video" Command="{Binding ExportCommand}" Margin="6"/>
+    </DockPanel>
+
+    <!-- Main area -->
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="220"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="340"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Jobs -->
+      <DockPanel Grid.Column="0" Margin="6">
+        <TextBlock Text="Jobs" FontWeight="Bold" DockPanel.Dock="Top"/>
+        <Button Content="Delete job" Command="{Binding DeleteJobCommand}"
+                CommandParameter="{Binding SelectedItem, ElementName=JobList}"
+                DockPanel.Dock="Bottom" Margin="0,6,0,0"/>
+        <ListBox x:Name="JobList" ItemsSource="{Binding Jobs}"
+                 SelectionChanged="JobList_SelectionChanged" DisplayMemberPath="Name"/>
+      </DockPanel>
+
+      <!-- Preview -->
+      <Grid Grid.Column="1" Margin="6">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="110"/>
+        </Grid.RowDefinitions>
+
+        <!--
+          The box overlay sits on top of the video but is hit-test invisible
+          by default, so clicks always reach the video and its controls
+          (the Go version's v0.2.3 lesson: an overlay that swallows clicks
+          makes Play unclickable). It only takes mouse input while Draw mode
+          is on, and drawing turns itself off after one box.
+        -->
+        <Grid Grid.Row="0" Background="Black" x:Name="PreviewGrid">
+          <MediaElement x:Name="Player" LoadedBehavior="Manual" UnloadedBehavior="Manual"
+                        Stretch="Uniform" MediaEnded="Player_MediaEnded"/>
+          <Canvas x:Name="BoxCanvas" Background="Transparent" IsHitTestVisible="False"
+                  MouseLeftButtonDown="BoxCanvas_MouseLeftButtonDown"
+                  MouseMove="BoxCanvas_MouseMove"
+                  MouseLeftButtonUp="BoxCanvas_MouseLeftButtonUp"/>
+          <TextBlock x:Name="DrawHint" Text="Drawing mode: drag a box on the video"
+                     Foreground="White" Background="#AA000000" Padding="6,2"
+                     HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,8,0,0"
+                     Visibility="Collapsed"/>
+          <TextBlock Text="Drop a .mp4, .mov or .mkv here, or use Open video…"
+                     Foreground="#FF888888" HorizontalAlignment="Center" VerticalAlignment="Center"
+                     x:Name="EmptyHint"/>
+        </Grid>
+
+        <!-- Playback controls -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,6,0,0">
+          <Button Content="Play" x:Name="PlayPauseBtn" Click="PlayPause_Click" Width="70"/>
+          <Slider x:Name="SeekSlider" Minimum="0" Maximum="1" Value="0" Width="300"
+                  Margin="10,0,6,0" VerticalAlignment="Center"
+                  PreviewMouseLeftButtonDown="SeekSlider_DragStart"
+                  PreviewMouseLeftButtonUp="SeekSlider_DragEnd"/>
+          <TextBlock x:Name="TimeText" Text="0:00 / 0:00" VerticalAlignment="Center"/>
+          <Button Content="What does the scan see here?" Command="{Binding OcrPreviewCommand}"
+                  Margin="12,0,0,0"/>
+        </StackPanel>
+
+        <!-- Scan -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,6,0,0">
+          <Button Content="Auto-scan" Command="{Binding ScanCommand}" Width="110"/>
+          <TextBlock Text="Scans with local Tesseract OCR. Manual boxes are kept — a scan never deletes them."
+                     VerticalAlignment="Center" TextWrapping="Wrap" Margin="10,0,0,0"/>
+        </StackPanel>
+
+        <!-- OCR preview words -->
+        <GroupBox Grid.Row="3" Header="What the scan sees at this frame" Margin="0,6,0,0">
+          <ListBox ItemsSource="{Binding OcrWords}">
+            <ListBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock>
+                  <Run Text="{Binding Text}" FontWeight="Bold"/>
+                  <Run Text="  ("/>
+                  <Run Text="{Binding X}"/><Run Text=", "/><Run Text="{Binding Y}"/>
+                  <Run Text="  conf "/><Run Text="{Binding Conf}"/><Run Text=")"/>
+                </TextBlock>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </GroupBox>
+      </Grid>
+
+      <!-- Right panel -->
+      <ScrollViewer Grid.Column="2" Margin="6" VerticalScrollBarVisibility="Auto">
+        <StackPanel>
+          <GroupBox Header="Blur regions" Margin="0,0,0,8">
+            <StackPanel>
+              <ListView ItemsSource="{Binding Regions}" SelectedItem="{Binding SelectedRegion}"
+                        MouseDoubleClick="RegionList_DoubleClick" MaxHeight="220">
+                <ListView.View>
+                  <GridView>
+                    <GridViewColumn Header="Label" Width="80" DisplayMemberBinding="{Binding Label}"/>
+                    <GridViewColumn Header="Start" Width="60" DisplayMemberBinding="{Binding Start, StringFormat=F1}"/>
+                    <GridViewColumn Header="End" Width="60" DisplayMemberBinding="{Binding End, StringFormat=F1}"/>
+                    <GridViewColumn Header="On" Width="34">
+                      <GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                          <CheckBox IsChecked="{Binding Enabled}" HorizontalAlignment="Center"/>
+                        </DataTemplate>
+                      </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                    <GridViewColumn Header="" Width="60">
+                      <GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                          <Button Content="Delete" Padding="4,1"
+                                  Command="{Binding DataContext.DeleteRegionCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                  CommandParameter="{Binding}"/>
+                        </DataTemplate>
+                      </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+                  </GridView>
+                </ListView.View>
+              </ListView>
+              <TextBlock Text="Double-click a region to jump to it. Select one to edit its times:"
+                         TextWrapping="Wrap" Margin="0,6,0,4"/>
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Start (s):" VerticalAlignment="Center"/>
+                <TextBox Text="{Binding SelectedRegionStartText, UpdateSourceTrigger=PropertyChanged}"
+                         Width="60" Margin="4,0,10,0"/>
+                <TextBlock Text="End (s):" VerticalAlignment="Center"/>
+                <TextBox Text="{Binding SelectedRegionEndText, UpdateSourceTrigger=PropertyChanged}"
+                         Width="60" Margin="4,0,10,0"/>
+                <Button Content="Apply" Command="{Binding ApplyRegionTimesCommand}"/>
+              </StackPanel>
+              <TextBlock Text="End must be after start, within the video length."
+                         Foreground="#FF666666" TextWrapping="Wrap" Margin="0,4,0,0"/>
+            </StackPanel>
+          </GroupBox>
+
+          <GroupBox Header="Scan settings" Margin="0,0,0,8">
+            <StackPanel>
+              <TextBlock Text="Scan every (seconds, 0.5–2):"/>
+              <TextBox Text="{Binding Config.ScanInterval, UpdateSourceTrigger=PropertyChanged}" Width="80"
+                       HorizontalAlignment="Left"/>
+              <TextBlock Text="Blur strength (10–30):" Margin="0,6,0,0"/>
+              <TextBox Text="{Binding Config.BlurStrength, UpdateSourceTrigger=PropertyChanged}" Width="80"
+                       HorizontalAlignment="Left"/>
+              <TextBlock Text="Detect:" FontWeight="Bold" Margin="0,8,0,2"/>
+              <CheckBox Content="Links (URLs)" IsChecked="{Binding PatternUrl}"/>
+              <CheckBox Content="Emails" IsChecked="{Binding PatternEmail}"/>
+              <CheckBox Content="Passwords (incl. bare “password” labels)" IsChecked="{Binding PatternPassword}"/>
+              <CheckBox Content="API keys" IsChecked="{Binding PatternApiKey}"/>
+              <CheckBox Content="Crypto addresses (Bitcoin / Ethereum)" IsChecked="{Binding PatternCrypto}"/>
+              <CheckBox Content="Possible keys — long random tokens (opt-in, can be noisy)" IsChecked="{Binding PatternPossibleKey}"/>
+              <TextBlock Text="Extra keywords (comma separated):" Margin="0,6,0,0"/>
+              <TextBox Text="{Binding KeywordsText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="False"/>
+              <Button Content="Save settings" Command="{Binding SaveSettingsCommand}"
+                      HorizontalAlignment="Left" Margin="0,8,0,0"/>
+            </StackPanel>
+          </GroupBox>
+
+          <GroupBox Header="Tools" Margin="0,0,0,8">
+            <StackPanel>
+              <TextBlock Text="{Binding FfmpegStatus}" TextWrapping="Wrap"/>
+              <TextBlock Text="{Binding TesseractStatus}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+              <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                <Button Content="Download ffmpeg" Command="{Binding DownloadFfmpegCommand}"/>
+                <Button Content="Download Tesseract" Command="{Binding DownloadTesseractCommand}"/>
+                <Button Content="Re-check" Command="{Binding RecheckToolsCommand}"/>
+              </StackPanel>
+              <TextBlock Text="Manual paths (leave empty for auto-detect):" Margin="0,6,0,2"/>
+              <TextBlock Text="ffmpeg:"/>
+              <TextBox Text="{Binding Config.FfmpegPath, UpdateSourceTrigger=PropertyChanged}"/>
+              <TextBlock Text="ffprobe:"/>
+              <TextBox Text="{Binding Config.FfprobePath, UpdateSourceTrigger=PropertyChanged}"/>
+              <TextBlock Text="tesseract:"/>
+              <TextBox Text="{Binding Config.TesseractPath, UpdateSourceTrigger=PropertyChanged}"/>
+              <Button Content="Save tool paths" Command="{Binding SaveToolPathsCommand}"
+                      HorizontalAlignment="Left" Margin="0,6,0,0"/>
+            </StackPanel>
+          </GroupBox>
+
+          <GroupBox Header="Export" Margin="0,0,0,8">
+            <StackPanel>
+              <TextBlock Text="{Binding ExportOutputPath}" TextWrapping="Wrap"/>
+              <Button Content="Show exported file" Command="{Binding OpenExportFolderCommand}"
+                      HorizontalAlignment="Left"/>
+              <TextBlock Text="Exports are always .mp4, even when the source is .mkv or .mov."
+                         Foreground="#FF666666" TextWrapping="Wrap" Margin="0,4,0,0"/>
+            </StackPanel>
+          </GroupBox>
+        </StackPanel>
+      </ScrollViewer>
+    </Grid>
+
+    <!-- Status bar -->
+    <StatusBar Grid.Row="2">
+      <StatusBarItem>
+        <TextBlock Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+      </StatusBarItem>
+      <StatusBarItem HorizontalAlignment="Right">
+        <ProgressBar Value="{Binding Progress}" Maximum="1" Width="200" Height="14"/>
+      </StatusBarItem>
+    </StatusBar>
+  </Grid>
+</Window>
