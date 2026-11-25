@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  core:
+    name: Core library + tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Check bundle script
+        run: python3 -m py_compile scripts/bundle-tesseract.py
+
+      - name: Build core
+        run: dotnet build src/FastBlur.Core/FastBlur.Core.csproj -c Release
+
+      - name: Test
+        run: dotnet test tests/FastBlur.Core.Tests/FastBlur.Core.Tests.csproj -c Release --no-restore
+
+      - name: Install ffmpeg (smoke test)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Export smoke test
+        run: |
+          dotnet test tests/FastBlur.Core.Tests/FastBlur.Core.Tests.csproj -c Release --no-restore --filter "FullyQualifiedName~Integration"
+
+  wpf:
+    name: WPF app (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build WPF app
+        run: dotnet build src/FastBlur/FastBlur.csproj -c Release
+
+      - name: Publish single-file exe (smoke)
+        run: dotnet publish src/FastBlur/FastBlur.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publish-smoke
+
+      - name: Smoke test
+        run: .\publish-smoke\FastBlur.exe --help
