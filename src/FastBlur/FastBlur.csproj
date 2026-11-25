@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <!-- Lets the project at least compile on Linux/macOS (reference
+         assemblies only); the real build still happens on windows-latest CI. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>FastBlur</AssemblyName>
+    <RootNamespace>FastBlur</RootNamespace>
+    <Version>0.1.0</Version>
+    <!-- Single self-contained Windows exe on publish. -->
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FastBlur.Core\FastBlur.Core.csproj" />
+  </ItemGroup>
+
+</Project>
