@@ -26,14 +26,14 @@ jobs:
         run: dotnet build src/FastBlur.Core/FastBlur.Core.csproj -c Release
 
       - name: Test
-        run: dotnet test tests/FastBlur.Core.Tests/FastBlur.Core.Tests.csproj -c Release --no-restore
+        run: dotnet test tests/FastBlur.Core.Tests/FastBlur.Core.Tests.csproj -c Release
 
       - name: Install ffmpeg (smoke test)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
 
       - name: Export smoke test
         run: |
-          dotnet test tests/FastBlur.Core.Tests/FastBlur.Core.Tests.csproj -c Release --no-restore --filter "FullyQualifiedName~Integration"
+          dotnet test tests/FastBlur.Core.Tests/FastBlur.Core.Tests.csproj -c Release --filter "FullyQualifiedName~Integration"
 
   wpf:
     name: WPF app (Windows)
