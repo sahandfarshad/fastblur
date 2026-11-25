@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Download Windows ffmpeg (pinned 8.1.2, SHA-256 checked)
+        run: |
+          curl -fsSL -o ffmpeg-win.zip "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.zip"
+          echo "db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec  ffmpeg-win.zip" | sha256sum -c -
+          unzip -o -q ffmpeg-win.zip "ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe" "ffmpeg-8.1.2-essentials_build/bin/ffprobe.exe"
+          mkdir -p win-bundle/tools
+          cp ffmpeg-8.1.2-essentials_build/bin/ffmpeg.exe win-bundle/tools/
+          cp ffmpeg-8.1.2-essentials_build/bin/ffprobe.exe win-bundle/tools/
+          test -f win-bundle/tools/ffmpeg.exe
+          test -f win-bundle/tools/ffprobe.exe
+
+      - name: Download + extract Windows Tesseract (UB-Mannheim 5.5.3)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq p7zip-full
+          curl -fsSL -o tesseract-setup.exe "https://github.com/tesseract-ocr/tesseract/releases/download/5.5.3/tesseract-ocr-w64-setup-5.5.3.20260724.exe"
+          mkdir -p tess-extract
+          7z x -y -otess-extract tesseract-setup.exe > /dev/null
+          python3 scripts/bundle-tesseract.py --src tess-extract --dest win-bundle/tools
+          mkdir -p win-bundle/tools/tessdata
+          curl -fsSL -o win-bundle/tools/tessdata/eng.traineddata "https://github.com/tesseract-ocr/tessdata_fast/raw/main/eng.traineddata"
+          if [ -d tess-extract/tessdata/configs ]; then cp -r tess-extract/tessdata/configs win-bundle/tools/tessdata/configs; fi
+          test -f win-bundle/tools/tesseract.exe
+          test -f win-bundle/tools/tessdata/eng.traineddata
+          ls win-bundle/tools/ | wc -l
+
+      - name: Test core + build Windows exe
+        run: |
+          dotnet test tests/FastBlur.Core.Tests/FastBlur.Core.Tests.csproj -c Release
+          dotnet publish src/FastBlur/FastBlur.csproj -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o win-bundle
+          test -f win-bundle/FastBlur.exe
+          cp README.md win-bundle/README.md
+          cp THIRD-PARTY-NOTICES.md win-bundle/THIRD-PARTY-NOTICES.md
+          cd win-bundle && zip -r ../fastblur-windows-amd64.zip . && cd ..
+          unzip -l fastblur-windows-amd64.zip | tail -5
+          ls -lh fastblur-windows-amd64.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            fastblur-windows-amd64.zip
+          generate_release_notes: true
