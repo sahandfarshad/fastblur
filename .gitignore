@@ -1,0 +1,22 @@
+## Build outputs
+bin/
+obj/
+publish-smoke/
+win-bundle/
+*.zip
+
+## .NET / Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## OS
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+## Local test data
+*.mp4
+!testdata/*.mp4
