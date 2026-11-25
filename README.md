@@ -69,8 +69,8 @@ the Tools section, the `FASTBLUR_FFMPEG` / `FASTBLUR_TESSERACT`
 environment variables, next to `FastBlur.exe`, in `tools/` or `bin/`,
 the current folder, `PATH`, then the usual Windows install folders.
 The Tools section shows what was found (green = found) and what was
-searched, lets you set paths by hand, and can download ffmpeg (pinned
-8.1.2, SHA-256 checked) and the Tesseract installer (UB-Mannheim 5.5.3)
+searched, lets you set paths by hand, and can download ffmpeg (current
+gyan.dev release essentials build) and the Tesseract installer (UB-Mannheim 5.5.3)
 with one click.
 
 ## Command line

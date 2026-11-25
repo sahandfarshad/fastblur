@@ -5,18 +5,20 @@ namespace FastBlur.Core.Ffmpeg;
 
 /// <summary>
 /// One-click fetch of ffmpeg / Tesseract when they are missing. ffmpeg comes
-/// as the pinned gyan.dev essentials zip (SHA-256 verified, ffmpeg.exe +
-/// ffprobe.exe extracted — no 7z needed). Tesseract ships as the official
-/// UB-Mannheim installer, which is downloaded and launched for the user to
-/// complete (it needs a GUI install and may need admin for C:\Program Files).
-/// Port of BlurCut's tools.go.
+/// as the gyan.dev release essentials zip (ffmpeg.exe + ffprobe.exe extracted
+/// — no 7z needed). NOTE: gyan.dev only keeps the latest release build, so a
+/// pinned version URL (e.g. ffmpeg-8.1.2) 404s once a newer release ships —
+/// that broke the v0.1.0 release build on 2026-11-25. Use the stable
+/// "release essentials" URL instead and verify the extracted binaries exist;
+/// do NOT pin a SHA-256, it changes with every gyan.dev release update.
+/// Tesseract ships as the official UB-Mannheim installer, which is downloaded
+/// and launched for the user to complete (it needs a GUI install and may need
+/// admin for C:\Program Files). Port of BlurCut's tools.go.
 /// </summary>
 public sealed class ToolDownloader
 {
     public const string FfmpegDownloadUrl =
-        "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.2-essentials_build.zip";
-    public const string FfmpegDownloadSha256 =
-        "db580001caa24ac104c8cb856cd113a87b0a443f7bdf47d8c12b1d740584a2ec";
+        "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip";
     public const string TesseractDownloadUrl =
         "https://github.com/tesseract-ocr/tesseract/releases/download/5.5.3/tesseract-ocr-w64-setup-5.5.3.20260724.exe";
 
@@ -53,8 +55,10 @@ public sealed class ToolDownloader
     public sealed record DownloadStatus(string Tool, DownloadState State, string Message, double Progress);
 
     /// <summary>
-    /// Fetches the pinned gyan.dev zip, verifies its SHA-256 and extracts
-    /// ffmpeg.exe (and ffprobe.exe if present) into the tools dir.
+    /// Fetches the gyan.dev release essentials zip and extracts ffmpeg.exe
+    /// (and ffprobe.exe if present) into the tools dir. The zip's inner folder
+    /// is versioned (ffmpeg-9.1-essentials_build, …), so entries are matched
+    /// by file name, not path.
     /// </summary>
     public async Task<DownloadStatus> DownloadFfmpegAsync(
         IProgress<DownloadStatus>? progress = null, CancellationToken ct = default)
@@ -76,13 +80,10 @@ public sealed class ToolDownloader
                             (double)got / total);
                 }, ct);
 
-            var sum = await Sha256FileAsync(zipPath, ct);
-            if (!string.Equals(sum, FfmpegDownloadSha256, StringComparison.OrdinalIgnoreCase))
-            {
-                File.Delete(zipPath);
-                return new DownloadStatus("ffmpeg", DownloadState.Error,
-                    $"Download failed: checksum mismatch (got {sum})", 0);
-            }
+            // No pinned checksum: gyan.dev rotates the release build, so a
+            // fixed SHA would break the download on the next release. The
+            // archive is verified by its contents below (ffmpeg.exe must be
+            // present) instead.
 
             Report(DownloadState.Extracting, "Extracting ffmpeg.exe…", 0.9);
             int extracted = 0;
